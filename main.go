@@ -40,7 +40,7 @@ func main() {
 			continue
 		}
 
-		a, ok, err := readNumber(reader, "First number: ", lastResult, hasLast)
+		numbers, ok, err := readNumbers(reader, op, lastResult, hasLast)
 		if !ok {
 			fmt.Println("Goodbye.")
 			return
@@ -50,17 +50,7 @@ func main() {
 			continue
 		}
 
-		b, ok, err := readNumber(reader, "Second number: ", lastResult, hasLast)
-		if !ok {
-			fmt.Println("Goodbye.")
-			return
-		}
-		if err != nil {
-			fmt.Println("Input error:", err)
-			continue
-		}
-
-		result, err := calculate(op, a, b)
+		result, err := calculateMany(op, numbers)
 		if err != nil {
 			fmt.Println("Calculation error:", err)
 			continue
@@ -69,7 +59,7 @@ func main() {
 		fmt.Printf("Result: %g\n", result)
 		lastResult = result
 		hasLast = true
-		history = append(history, fmt.Sprintf("%g %s %g = %g", a, op, b, result))
+		history = append(history, fmt.Sprintf("%s = %g", formatExpression(numbers, op), result))
 	}
 }
 
@@ -129,6 +119,38 @@ func readNumber(reader *bufio.Reader, prompt string, lastResult float64, hasLast
 	return value, true, nil
 }
 
+func readNumbers(reader *bufio.Reader, op string, lastResult float64, hasLast bool) ([]float64, bool, error) {
+	fmt.Println("Enter numbers one per line. Press Enter on a blank line to finish.")
+	if hasLast {
+		fmt.Println("Tip: type ans or last to reuse the previous result.")
+	}
+
+	var numbers []float64
+	for {
+		value, ok, err := readNumber(reader, fmt.Sprintf("Number %d: ", len(numbers)+1), lastResult, hasLast)
+		if !ok {
+			return nil, false, nil
+		}
+		if err != nil {
+			if strings.Contains(err.Error(), "empty input") {
+				break
+			}
+			return nil, true, err
+		}
+		numbers = append(numbers, value)
+	}
+
+	if len(numbers) < 2 {
+		return nil, true, errors.New("enter at least two numbers")
+	}
+
+	if (op == "-" || op == "/" || op == "%" || op == "^") && len(numbers) > 2 {
+		return nil, true, errors.New("this operator supports exactly two numbers")
+	}
+
+	return numbers, true, nil
+}
+
 func calculate(op string, a, b float64) (float64, error) {
 	switch op {
 	case "+":
@@ -154,6 +176,34 @@ func calculate(op string, a, b float64) (float64, error) {
 	}
 }
 
+func calculateMany(op string, numbers []float64) (float64, error) {
+	if len(numbers) < 2 {
+		return 0, errors.New("need at least two numbers")
+	}
+	result := numbers[0]
+	for i := 1; i < len(numbers); i++ {
+		value := numbers[i]
+		next, err := calculate(op, result, value)
+		if err != nil {
+			return 0, err
+		}
+		result = next
+	}
+	return result, nil
+}
+
+func formatExpression(numbers []float64, op string) string {
+	if len(numbers) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%g", numbers[0]))
+	for i := 1; i < len(numbers); i++ {
+		b.WriteString(fmt.Sprintf(" %s %g", op, numbers[i]))
+	}
+	return b.String()
+}
+
 func readLine(reader *bufio.Reader) (string, bool, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -176,6 +226,7 @@ func printHelp() {
 	fmt.Println("  exit    Quit the calculator")
 	fmt.Println("Notes:")
 	fmt.Println("  Use ans or last as a number to reuse the previous result.")
+	fmt.Println("  Enter multiple numbers (one per line). Blank line finishes input.")
 }
 
 func printHistory(history []string) {
