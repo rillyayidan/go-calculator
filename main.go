@@ -18,7 +18,7 @@ func main() {
 	var hasLast bool
 
 	fmt.Println("Calculator")
-	fmt.Println("Enter one of +, -, *, /, ^, % or type 'help' for commands.")
+	fmt.Println("Enter one of +, -, *, /, ^, %, sin, cos, tan, sqrt, log or type 'help' for commands.")
 
 	for {
 		action, op, ok := readOperator(reader)
@@ -65,7 +65,7 @@ func main() {
 
 func readOperator(reader *bufio.Reader) (string, string, bool) {
 	for {
-		fmt.Print("Operator (+, -, *, /, ^, %) or command (help, history, clear, exit): ")
+		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, clear, exit): ")
 		line, ok, err := readLine(reader)
 		if err != nil {
 			return "", "", false
@@ -81,7 +81,7 @@ func readOperator(reader *bufio.Reader) (string, string, bool) {
 			return line, "", true
 		}
 		switch line {
-		case "+", "-", "*", "/", "^", "%":
+		case "+", "-", "*", "/", "^", "%", "sin", "cos", "tan", "sqrt", "log":
 			return "op", line, true
 		}
 		if strings.EqualFold(line, "pow") {
@@ -89,6 +89,9 @@ func readOperator(reader *bufio.Reader) (string, string, bool) {
 		}
 		if strings.EqualFold(line, "mod") {
 			return "op", "%", true
+		}
+		if strings.EqualFold(line, "ln") {
+			return "op", "log", true
 		}
 		fmt.Println("Please enter a valid operator or command.")
 	}
@@ -141,11 +144,17 @@ func readNumbers(reader *bufio.Reader, op string, lastResult float64, hasLast bo
 	}
 
 	if len(numbers) < 2 {
+		if isUnaryOperator(op) && len(numbers) == 1 {
+			return numbers, true, nil
+		}
 		return nil, true, errors.New("enter at least two numbers")
 	}
 
 	if (op == "-" || op == "/" || op == "%" || op == "^") && len(numbers) > 2 {
 		return nil, true, errors.New("this operator supports exactly two numbers")
+	}
+	if isUnaryOperator(op) && len(numbers) != 1 {
+		return nil, true, errors.New("this operator supports exactly one number")
 	}
 
 	return numbers, true, nil
@@ -177,6 +186,15 @@ func calculate(op string, a, b float64) (float64, error) {
 }
 
 func calculateMany(op string, numbers []float64) (float64, error) {
+	if len(numbers) < 1 {
+		return 0, errors.New("need at least one number")
+	}
+	if isUnaryOperator(op) {
+		if len(numbers) != 1 {
+			return 0, errors.New("this operator supports exactly one number")
+		}
+		return calculateUnary(op, numbers[0])
+	}
 	if len(numbers) < 2 {
 		return 0, errors.New("need at least two numbers")
 	}
@@ -192,9 +210,44 @@ func calculateMany(op string, numbers []float64) (float64, error) {
 	return result, nil
 }
 
+func calculateUnary(op string, value float64) (float64, error) {
+	switch op {
+	case "sin":
+		return math.Sin(value), nil
+	case "cos":
+		return math.Cos(value), nil
+	case "tan":
+		return math.Tan(value), nil
+	case "sqrt":
+		if value < 0 {
+			return 0, errors.New("square root of negative number")
+		}
+		return math.Sqrt(value), nil
+	case "log":
+		if value <= 0 {
+			return 0, errors.New("logarithm domain error")
+		}
+		return math.Log(value), nil
+	default:
+		return 0, errors.New("unknown operator")
+	}
+}
+
+func isUnaryOperator(op string) bool {
+	switch op {
+	case "sin", "cos", "tan", "sqrt", "log":
+		return true
+	default:
+		return false
+	}
+}
+
 func formatExpression(numbers []float64, op string) string {
 	if len(numbers) == 0 {
 		return ""
+	}
+	if isUnaryOperator(op) && len(numbers) == 1 {
+		return fmt.Sprintf("%s(%g)", op, numbers[0])
 	}
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("%g", numbers[0]))
@@ -227,6 +280,8 @@ func printHelp() {
 	fmt.Println("Notes:")
 	fmt.Println("  Use ans or last as a number to reuse the previous result.")
 	fmt.Println("  Enter multiple numbers (one per line). Blank line finishes input.")
+	fmt.Println("  Trig functions use radians.")
+	fmt.Println("  Unary functions: sin, cos, tan, sqrt, log.")
 }
 
 func printHistory(history []string) {
