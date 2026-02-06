@@ -107,7 +107,7 @@ func (c *Calculator) readOperator() (string, string, bool) {
 
 func isCommand(cmd string) bool {
 	switch cmd {
-	case "help", "history", "degrees", "radians", "export", "clear":
+	case "help", "history", "degrees", "radians", "export", "clear", "mode":
 		return true
 	default:
 		return false
@@ -144,6 +144,17 @@ func (c *Calculator) handleCommand(cmd string) bool {
 	case "export":
 		if err := exportHistory(c.reader, c.history); err != nil {
 			fmt.Println("Export error:", err)
+		}
+	case "mode":
+		if c.useDegrees {
+			fmt.Println("Mode: degrees")
+		} else {
+			fmt.Println("Mode: radians")
+		}
+		if c.hasLast {
+			fmt.Printf("Last result: %g\n", c.lastResult)
+		} else {
+			fmt.Println("Last result: none")
 		}
 	case "clear":
 		c.history = nil
@@ -362,6 +373,7 @@ func printHelp(deg bool) {
 	fmt.Println("  history  Show calculation history")
 	fmt.Println("  degrees  Use degrees for trig")
 	fmt.Println("  radians  Use radians for trig")
+	fmt.Println("  mode     Show trig mode and last result")
 	fmt.Println("  export   Save history to file")
 	fmt.Println("  clear    Clear memory")
 	fmt.Println("  exit     Quit")
