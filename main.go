@@ -203,6 +203,14 @@ func parseNumbersLine(line string, last float64, hasLast bool) ([]float64, error
 			values = append(values, last)
 			continue
 		}
+		if token == "pi" {
+			values = append(values, math.Pi)
+			continue
+		}
+		if token == "e" {
+			values = append(values, math.E)
+			continue
+		}
 
 		val, err := strconv.ParseFloat(field, 64)
 		if err != nil {
@@ -364,6 +372,7 @@ func printHelp(deg bool) {
 		fmt.Println("Trig mode: radians")
 	}
 	fmt.Println("Input: enter multiple numbers per line, separated by spaces or commas.")
+	fmt.Println("Constants: pi, e.")
 }
 
 func printHistory(history []string) {
