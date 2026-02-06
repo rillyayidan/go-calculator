@@ -16,6 +16,7 @@ func main() {
 	var history []string
 	var lastResult float64
 	var hasLast bool
+	useDegrees := false
 
 	fmt.Println("Calculator")
 	fmt.Println("Enter one of +, -, *, /, ^, %, sin, cos, tan, sqrt, log or type 'help' for commands.")
@@ -28,10 +29,18 @@ func main() {
 		}
 		switch action {
 		case "help":
-			printHelp()
+			printHelp(useDegrees)
 			continue
 		case "history":
 			printHistory(history)
+			continue
+		case "degrees":
+			useDegrees = true
+			fmt.Println("Trig mode: degrees")
+			continue
+		case "radians":
+			useDegrees = false
+			fmt.Println("Trig mode: radians")
 			continue
 		case "export":
 			if err := exportHistory(reader, history); err != nil {
@@ -55,7 +64,7 @@ func main() {
 			continue
 		}
 
-		result, err := calculateMany(op, numbers)
+		result, err := calculateMany(op, numbers, useDegrees)
 		if err != nil {
 			fmt.Println("Calculation error:", err)
 			continue
@@ -70,7 +79,7 @@ func main() {
 
 func readOperator(reader *bufio.Reader) (string, string, bool) {
 	for {
-		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, export, clear, exit): ")
+		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, degrees, radians, export, clear, exit): ")
 		line, ok, err := readLine(reader)
 		if err != nil {
 			return "", "", false
@@ -82,7 +91,7 @@ func readOperator(reader *bufio.Reader) (string, string, bool) {
 			return "exit", "", false
 		}
 		switch strings.ToLower(line) {
-		case "help", "history", "export", "clear":
+		case "help", "history", "degrees", "radians", "export", "clear":
 			return line, "", true
 		}
 		switch line {
@@ -190,7 +199,7 @@ func calculate(op string, a, b float64) (float64, error) {
 	}
 }
 
-func calculateMany(op string, numbers []float64) (float64, error) {
+func calculateMany(op string, numbers []float64, useDegrees bool) (float64, error) {
 	if len(numbers) < 1 {
 		return 0, errors.New("need at least one number")
 	}
@@ -198,7 +207,7 @@ func calculateMany(op string, numbers []float64) (float64, error) {
 		if len(numbers) != 1 {
 			return 0, errors.New("this operator supports exactly one number")
 		}
-		return calculateUnary(op, numbers[0])
+		return calculateUnary(op, numbers[0], useDegrees)
 	}
 	if len(numbers) < 2 {
 		return 0, errors.New("need at least two numbers")
@@ -215,14 +224,14 @@ func calculateMany(op string, numbers []float64) (float64, error) {
 	return result, nil
 }
 
-func calculateUnary(op string, value float64) (float64, error) {
+func calculateUnary(op string, value float64, useDegrees bool) (float64, error) {
 	switch op {
 	case "sin":
-		return math.Sin(value), nil
+		return math.Sin(toRadians(value, useDegrees)), nil
 	case "cos":
-		return math.Cos(value), nil
+		return math.Cos(toRadians(value, useDegrees)), nil
 	case "tan":
-		return math.Tan(value), nil
+		return math.Tan(toRadians(value, useDegrees)), nil
 	case "sqrt":
 		if value < 0 {
 			return 0, errors.New("square root of negative number")
@@ -245,6 +254,13 @@ func isUnaryOperator(op string) bool {
 	default:
 		return false
 	}
+}
+
+func toRadians(value float64, useDegrees bool) float64 {
+	if !useDegrees {
+		return value
+	}
+	return value * (math.Pi / 180)
 }
 
 func formatExpression(numbers []float64, op string) string {
@@ -276,17 +292,23 @@ func readLine(reader *bufio.Reader) (string, bool, error) {
 	return strings.TrimSpace(line), true, nil
 }
 
-func printHelp() {
+func printHelp(useDegrees bool) {
 	fmt.Println("Commands:")
 	fmt.Println("  help    Show this help")
 	fmt.Println("  history Show previous calculations")
+	fmt.Println("  degrees Set trig input to degrees")
+	fmt.Println("  radians Set trig input to radians")
 	fmt.Println("  export  Save history to a file")
 	fmt.Println("  clear   Clear history and last result")
 	fmt.Println("  exit    Quit the calculator")
 	fmt.Println("Notes:")
 	fmt.Println("  Use ans or last as a number to reuse the previous result.")
 	fmt.Println("  Enter multiple numbers (one per line). Blank line finishes input.")
-	fmt.Println("  Trig functions use radians.")
+	if useDegrees {
+		fmt.Println("  Trig functions use degrees.")
+	} else {
+		fmt.Println("  Trig functions use radians.")
+	}
 	fmt.Println("  Unary functions: sin, cos, tan, sqrt, log.")
 }
 
