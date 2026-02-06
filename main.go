@@ -11,52 +11,47 @@ import (
 	"strings"
 )
 
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-	var history []string
-	var lastResult float64
-	var hasLast bool
-	useDegrees := false
+type Calculator struct {
+	reader     *bufio.Reader
+	history    []string
+	lastResult float64
+	hasLast    bool
+	useDegrees bool
+}
 
-	fmt.Println("Calculator")
-	fmt.Println("Enter one of +, -, *, /, ^, %, sin, cos, tan, sqrt, log or type 'help' for commands.")
+func main() {
+	calc := NewCalculator()
+	calc.Run()
+}
+
+/* =======================
+   Core Application
+======================= */
+
+func NewCalculator() *Calculator {
+	return &Calculator{
+		reader: bufio.NewReader(os.Stdin),
+	}
+}
+
+func (c *Calculator) Run() {
+	fmt.Println("=== Advanced CLI Calculator ===")
+	fmt.Println("Type 'help' to see available commands.")
 
 	for {
-		action, op, ok := readOperator(reader)
+		action, op, ok := c.readOperator()
 		if !ok {
-			fmt.Println("Goodbye.")
+			fmt.Println("Goodbye 👋")
 			return
 		}
-		switch action {
-		case "help":
-			printHelp(useDegrees)
-			continue
-		case "history":
-			printHistory(history)
-			continue
-		case "degrees":
-			useDegrees = true
-			fmt.Println("Trig mode: degrees")
-			continue
-		case "radians":
-			useDegrees = false
-			fmt.Println("Trig mode: radians")
-			continue
-		case "export":
-			if err := exportHistory(reader, history); err != nil {
-				fmt.Println("Export error:", err)
-			}
-			continue
-		case "clear":
-			history = nil
-			hasLast = false
-			fmt.Println("Memory cleared.")
+
+		if c.handleCommand(action) {
 			continue
 		}
 
-		numbers, ok, err := readNumbers(reader, op, lastResult, hasLast)
+		numbers, ok, err := c.readNumbers(op)
 		if !ok {
-			fmt.Println("Goodbye.")
+			fmt.Println("Goodbye 👋")
 			return
 		}
 		if err != nil {
@@ -64,117 +59,198 @@ func main() {
 			continue
 		}
 
-		result, err := calculateMany(op, numbers, useDegrees)
+		result, err := calculateMany(op, numbers, c.useDegrees)
 		if err != nil {
 			fmt.Println("Calculation error:", err)
 			continue
 		}
 
-		fmt.Printf("Result: %g\n", result)
-		lastResult = result
-		hasLast = true
-		history = append(history, fmt.Sprintf("%s = %g", formatExpression(numbers, op), result))
+		c.lastResult = result
+		c.hasLast = true
+
+		expr := formatExpression(numbers, op)
+		c.history = append(c.history, fmt.Sprintf("%s = %g", expr, result))
+
+		fmt.Printf("Result → %g\n", result)
 	}
 }
 
-func readOperator(reader *bufio.Reader) (string, string, bool) {
+/* =======================
+   Operator & Commands
+======================= */
+
+func (c *Calculator) readOperator() (string, string, bool) {
 	for {
-		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, degrees, radians, export, clear, exit): ")
-		line, ok, err := readLine(reader)
-		if err != nil {
+		fmt.Print("\nOperator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log)\nCommand (help, history, degrees, radians, export, clear, exit)\n> ")
+		line, ok, err := readLine(c.reader)
+		if err != nil || !ok {
 			return "", "", false
 		}
-		if !ok {
-			return "", "", false
-		}
-		if strings.EqualFold(line, "exit") {
+
+		line = strings.ToLower(line)
+
+		if line == "exit" {
 			return "exit", "", false
 		}
-		switch strings.ToLower(line) {
-		case "help", "history", "degrees", "radians", "export", "clear":
+
+		if isCommand(line) {
 			return line, "", true
 		}
-		switch line {
-		case "+", "-", "*", "/", "^", "%", "sin", "cos", "tan", "sqrt", "log":
-			return "op", line, true
+
+		if mapped := normalizeOperator(line); mapped != "" {
+			return "op", mapped, true
 		}
-		if strings.EqualFold(line, "pow") {
-			return "op", "^", true
-		}
-		if strings.EqualFold(line, "mod") {
-			return "op", "%", true
-		}
-		if strings.EqualFold(line, "ln") {
-			return "op", "log", true
-		}
-		fmt.Println("Please enter a valid operator or command.")
+
+		fmt.Println("Invalid operator or command.")
 	}
 }
 
-func readNumber(reader *bufio.Reader, prompt string, lastResult float64, hasLast bool) (float64, bool, error) {
-	fmt.Print(prompt)
-	line, ok, err := readLine(reader)
-	if err != nil {
-		return 0, false, err
+func isCommand(cmd string) bool {
+	switch cmd {
+	case "help", "history", "degrees", "radians", "export", "clear":
+		return true
+	default:
+		return false
 	}
-	if !ok {
-		return 0, false, nil
-	}
-	if line == "" {
-		return 0, true, errors.New("empty input")
-	}
-	if strings.EqualFold(line, "ans") || strings.EqualFold(line, "last") {
-		if !hasLast {
-			return 0, true, errors.New("no previous result")
-		}
-		return lastResult, true, nil
-	}
-	value, err := strconv.ParseFloat(line, 64)
-	if err != nil {
-		return 0, true, err
-	}
-	return value, true, nil
 }
 
-func readNumbers(reader *bufio.Reader, op string, lastResult float64, hasLast bool) ([]float64, bool, error) {
-	fmt.Println("Enter numbers one per line. Press Enter on a blank line to finish.")
-	if hasLast {
-		fmt.Println("Tip: type ans or last to reuse the previous result.")
+func normalizeOperator(op string) string {
+	switch op {
+	case "+", "-", "*", "/", "^", "%", "sin", "cos", "tan", "sqrt", "log":
+		return op
+	case "pow":
+		return "^"
+	case "mod":
+		return "%"
+	case "ln":
+		return "log"
+	default:
+		return ""
+	}
+}
+
+func (c *Calculator) handleCommand(cmd string) bool {
+	switch cmd {
+	case "help":
+		printHelp(c.useDegrees)
+	case "history":
+		printHistory(c.history)
+	case "degrees":
+		c.useDegrees = true
+		fmt.Println("Trig mode set to degrees.")
+	case "radians":
+		c.useDegrees = false
+		fmt.Println("Trig mode set to radians.")
+	case "export":
+		if err := exportHistory(c.reader, c.history); err != nil {
+			fmt.Println("Export error:", err)
+		}
+	case "clear":
+		c.history = nil
+		c.hasLast = false
+		fmt.Println("Memory cleared.")
+	default:
+		return false
+	}
+	return true
+}
+
+/* =======================
+   Input Handling
+======================= */
+
+func (c *Calculator) readNumbers(op string) ([]float64, bool, error) {
+	fmt.Println("Enter numbers (blank line to finish).")
+	if c.hasLast {
+		fmt.Println("Tip: type 'ans' to reuse last result.")
 	}
 
 	var numbers []float64
 	for {
-		value, ok, err := readNumber(reader, fmt.Sprintf("Number %d: ", len(numbers)+1), lastResult, hasLast)
+		val, ok, err := readNumber(c.reader, len(numbers)+1, c.lastResult, c.hasLast)
 		if !ok {
 			return nil, false, nil
 		}
 		if err != nil {
-			if strings.Contains(err.Error(), "empty input") {
+			if errors.Is(err, ErrEmptyInput) {
 				break
 			}
 			return nil, true, err
 		}
-		numbers = append(numbers, value)
+		numbers = append(numbers, val)
 	}
 
-	if len(numbers) < 2 {
-		if isUnaryOperator(op) && len(numbers) == 1 {
-			return numbers, true, nil
-		}
-		return nil, true, errors.New("enter at least two numbers")
-	}
-
-	if (op == "-" || op == "/" || op == "%" || op == "^") && len(numbers) > 2 {
-		return nil, true, errors.New("this operator supports exactly two numbers")
-	}
-	if isUnaryOperator(op) && len(numbers) != 1 {
-		return nil, true, errors.New("this operator supports exactly one number")
-	}
-
-	return numbers, true, nil
+	return validateOperandCount(op, numbers)
 }
 
-func calculate(op string, a, b float64) (float64, error) {
+var ErrEmptyInput = errors.New("empty input")
+
+func readNumber(reader *bufio.Reader, index int, last float64, hasLast bool) (float64, bool, error) {
+	fmt.Printf("Number %d: ", index)
+	line, ok, err := readLine(reader)
+	if err != nil || !ok {
+		return 0, false, err
+	}
+
+	if line == "" {
+		return 0, true, ErrEmptyInput
+	}
+
+	if line == "ans" || line == "last" {
+		if !hasLast {
+			return 0, true, errors.New("no previous result")
+		}
+		return last, true, nil
+	}
+
+	val, err := strconv.ParseFloat(line, 64)
+	if err != nil {
+		return 0, true, errors.New("invalid number")
+	}
+
+	return val, true, nil
+}
+
+func validateOperandCount(op string, nums []float64) ([]float64, bool, error) {
+	if isUnaryOperator(op) {
+		if len(nums) != 1 {
+			return nil, true, errors.New("this operator requires exactly one operand")
+		}
+		return nums, true, nil
+	}
+
+	if len(nums) < 2 {
+		return nil, true, errors.New("at least two operands required")
+	}
+
+	if (op == "-" || op == "/" || op == "%" || op == "^") && len(nums) != 2 {
+		return nil, true, errors.New("this operator supports exactly two operands")
+	}
+
+	return nums, true, nil
+}
+
+/* =======================
+   Calculation
+======================= */
+
+func calculateMany(op string, nums []float64, degrees bool) (float64, error) {
+	if isUnaryOperator(op) {
+		return calculateUnary(op, nums[0], degrees)
+	}
+
+	result := nums[0]
+	for i := 1; i < len(nums); i++ {
+		var err error
+		result, err = calculateBinary(op, result, nums[i])
+		if err != nil {
+			return 0, err
+		}
+	}
+	return result, nil
+}
+
+func calculateBinary(op string, a, b float64) (float64, error) {
 	switch op {
 	case "+":
 		return a + b, nil
@@ -191,7 +267,7 @@ func calculate(op string, a, b float64) (float64, error) {
 		return math.Pow(a, b), nil
 	case "%":
 		if b == 0 {
-			return 0, errors.New("division by zero")
+			return 0, errors.New("modulo by zero")
 		}
 		return math.Mod(a, b), nil
 	default:
@@ -199,81 +275,58 @@ func calculate(op string, a, b float64) (float64, error) {
 	}
 }
 
-func calculateMany(op string, numbers []float64, useDegrees bool) (float64, error) {
-	if len(numbers) < 1 {
-		return 0, errors.New("need at least one number")
-	}
-	if isUnaryOperator(op) {
-		if len(numbers) != 1 {
-			return 0, errors.New("this operator supports exactly one number")
-		}
-		return calculateUnary(op, numbers[0], useDegrees)
-	}
-	if len(numbers) < 2 {
-		return 0, errors.New("need at least two numbers")
-	}
-	result := numbers[0]
-	for i := 1; i < len(numbers); i++ {
-		value := numbers[i]
-		next, err := calculate(op, result, value)
-		if err != nil {
-			return 0, err
-		}
-		result = next
-	}
-	return result, nil
-}
+func calculateUnary(op string, v float64, degrees bool) (float64, error) {
+	rad := toRadians(v, degrees)
 
-func calculateUnary(op string, value float64, useDegrees bool) (float64, error) {
 	switch op {
 	case "sin":
-		return math.Sin(toRadians(value, useDegrees)), nil
+		return math.Sin(rad), nil
 	case "cos":
-		return math.Cos(toRadians(value, useDegrees)), nil
+		return math.Cos(rad), nil
 	case "tan":
-		return math.Tan(toRadians(value, useDegrees)), nil
+		if math.Mod(rad, math.Pi/2) == 0 {
+			return 0, errors.New("tan undefined for this value")
+		}
+		return math.Tan(rad), nil
 	case "sqrt":
-		if value < 0 {
-			return 0, errors.New("square root of negative number")
+		if v < 0 {
+			return 0, errors.New("sqrt of negative number")
 		}
-		return math.Sqrt(value), nil
+		return math.Sqrt(v), nil
 	case "log":
-		if value <= 0 {
-			return 0, errors.New("logarithm domain error")
+		if v <= 0 {
+			return 0, errors.New("log domain error")
 		}
-		return math.Log(value), nil
+		return math.Log(v), nil
 	default:
-		return 0, errors.New("unknown operator")
+		return 0, errors.New("unknown unary operator")
 	}
 }
 
 func isUnaryOperator(op string) bool {
-	switch op {
-	case "sin", "cos", "tan", "sqrt", "log":
-		return true
-	default:
-		return false
-	}
+	return op == "sin" || op == "cos" || op == "tan" || op == "sqrt" || op == "log"
 }
 
-func toRadians(value float64, useDegrees bool) float64 {
-	if !useDegrees {
-		return value
+func toRadians(v float64, degrees bool) float64 {
+	if degrees {
+		return v * math.Pi / 180
 	}
-	return value * (math.Pi / 180)
+	return v
 }
 
-func formatExpression(numbers []float64, op string) string {
-	if len(numbers) == 0 {
-		return ""
+/* =======================
+   Utilities
+======================= */
+
+func formatExpression(nums []float64, op string) string {
+	if isUnaryOperator(op) {
+		return fmt.Sprintf("%s(%g)", op, nums[0])
 	}
-	if isUnaryOperator(op) && len(numbers) == 1 {
-		return fmt.Sprintf("%s(%g)", op, numbers[0])
-	}
+
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("%g", numbers[0]))
-	for i := 1; i < len(numbers); i++ {
-		b.WriteString(fmt.Sprintf(" %s %g", op, numbers[i]))
+	b.WriteString(fmt.Sprintf("%g", nums[0]))
+	for i := 1; i < len(nums); i++ {
+		b.WriteString(fmt.Sprintf(" %s %g", op, nums[i]))
 	}
 	return b.String()
 }
@@ -282,59 +335,32 @@ func readLine(reader *bufio.Reader) (string, bool, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			if line == "" {
-				return "", false, nil
-			}
-			return strings.TrimSpace(line), true, nil
+			return strings.TrimSpace(line), false, nil
 		}
 		return "", false, err
 	}
 	return strings.TrimSpace(line), true, nil
 }
 
-func printHelp(useDegrees bool) {
-	fmt.Println("Commands:")
-	fmt.Println("  help    Show this help")
-	fmt.Println("  history Show previous calculations")
-	fmt.Println("  degrees Set trig input to degrees")
-	fmt.Println("  radians Set trig input to radians")
-	fmt.Println("  export  Save history to a file")
-	fmt.Println("  clear   Clear history and last result")
-	fmt.Println("  exit    Quit the calculator")
-	fmt.Println("Notes:")
-	fmt.Println("  Use ans or last as a number to reuse the previous result.")
-	fmt.Println("  Enter multiple numbers (one per line). Blank line finishes input.")
-	if useDegrees {
-		fmt.Println("  Trig functions use degrees.")
+/* =======================
+   Help & History
+======================= */
+
+func printHelp(deg bool) {
+	fmt.Println("\nCommands:")
+	fmt.Println("  help     Show help")
+	fmt.Println("  history  Show calculation history")
+	fmt.Println("  degrees  Use degrees for trig")
+	fmt.Println("  radians  Use radians for trig")
+	fmt.Println("  export   Save history to file")
+	fmt.Println("  clear    Clear memory")
+	fmt.Println("  exit     Quit")
+
+	if deg {
+		fmt.Println("Trig mode: degrees")
 	} else {
-		fmt.Println("  Trig functions use radians.")
+		fmt.Println("Trig mode: radians")
 	}
-	fmt.Println("  Unary functions: sin, cos, tan, sqrt, log.")
-}
-
-func exportHistory(reader *bufio.Reader, history []string) error {
-	if len(history) == 0 {
-		return errors.New("no history to export")
-	}
-	fmt.Print("Export file path (default: history.txt): ")
-	line, ok, err := readLine(reader)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return io.EOF
-	}
-	path := line
-	if path == "" {
-		path = "history.txt"
-	}
-
-	var b strings.Builder
-	for _, entry := range history {
-		b.WriteString(entry)
-		b.WriteString("\n")
-	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
 func printHistory(history []string) {
@@ -342,8 +368,23 @@ func printHistory(history []string) {
 		fmt.Println("No history yet.")
 		return
 	}
-	fmt.Println("History:")
-	for i, entry := range history {
-		fmt.Printf("  %d) %s\n", i+1, entry)
+	fmt.Println("\nHistory:")
+	for i, h := range history {
+		fmt.Printf(" %2d) %s\n", i+1, h)
 	}
+}
+
+func exportHistory(reader *bufio.Reader, history []string) error {
+	if len(history) == 0 {
+		return errors.New("no history to export")
+	}
+
+	fmt.Print("Export file (default history.txt): ")
+	line, _, _ := readLine(reader)
+
+	if line == "" {
+		line = "history.txt"
+	}
+
+	return os.WriteFile(line, []byte(strings.Join(history, "\n")), 0644)
 }
