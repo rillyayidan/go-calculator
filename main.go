@@ -41,7 +41,7 @@ func (c *Calculator) Run() {
 	for {
 		action, op, ok := c.readOperator()
 		if !ok {
-			fmt.Println("Goodbye 👋")
+			fmt.Println("Goodbye.")
 			return
 		}
 
@@ -51,7 +51,7 @@ func (c *Calculator) Run() {
 
 		numbers, ok, err := c.readNumbers(op)
 		if !ok {
-			fmt.Println("Goodbye 👋")
+			fmt.Println("Goodbye.")
 			return
 		}
 		if err != nil {
@@ -71,7 +71,7 @@ func (c *Calculator) Run() {
 		expr := formatExpression(numbers, op)
 		c.history = append(c.history, fmt.Sprintf("%s = %g", expr, result))
 
-		fmt.Printf("Result → %g\n", result)
+		fmt.Printf("Result -> %g\n", result)
 	}
 }
 
@@ -160,55 +160,57 @@ func (c *Calculator) handleCommand(cmd string) bool {
 ======================= */
 
 func (c *Calculator) readNumbers(op string) ([]float64, bool, error) {
-	fmt.Println("Enter numbers (blank line to finish).")
+	fmt.Println("Enter numbers (blank line to finish). You can enter multiple numbers per line.")
 	if c.hasLast {
 		fmt.Println("Tip: type 'ans' to reuse last result.")
 	}
 
 	var numbers []float64
 	for {
-		val, ok, err := readNumber(c.reader, len(numbers)+1, c.lastResult, c.hasLast)
-		if !ok {
-			return nil, false, nil
+		fmt.Printf("Numbers (next %d+): ", len(numbers)+1)
+		line, ok, err := readLine(c.reader)
+		if err != nil || !ok {
+			return nil, false, err
 		}
+		if line == "" {
+			break
+		}
+		values, err := parseNumbersLine(line, c.lastResult, c.hasLast)
 		if err != nil {
-			if errors.Is(err, ErrEmptyInput) {
-				break
-			}
 			return nil, true, err
 		}
-		numbers = append(numbers, val)
+		numbers = append(numbers, values...)
 	}
 
 	return validateOperandCount(op, numbers)
 }
 
-var ErrEmptyInput = errors.New("empty input")
-
-func readNumber(reader *bufio.Reader, index int, last float64, hasLast bool) (float64, bool, error) {
-	fmt.Printf("Number %d: ", index)
-	line, ok, err := readLine(reader)
-	if err != nil || !ok {
-		return 0, false, err
+func parseNumbersLine(line string, last float64, hasLast bool) ([]float64, error) {
+	fields := strings.FieldsFunc(line, func(r rune) bool {
+		return r == ' ' || r == ',' || r == '\t'
+	})
+	if len(fields) == 0 {
+		return nil, errors.New("empty input")
 	}
 
-	if line == "" {
-		return 0, true, ErrEmptyInput
-	}
-
-	if line == "ans" || line == "last" {
-		if !hasLast {
-			return 0, true, errors.New("no previous result")
+	values := make([]float64, 0, len(fields))
+	for _, field := range fields {
+		token := strings.ToLower(field)
+		if token == "ans" || token == "last" {
+			if !hasLast {
+				return nil, errors.New("no previous result")
+			}
+			values = append(values, last)
+			continue
 		}
-		return last, true, nil
-	}
 
-	val, err := strconv.ParseFloat(line, 64)
-	if err != nil {
-		return 0, true, errors.New("invalid number")
+		val, err := strconv.ParseFloat(field, 64)
+		if err != nil {
+			return nil, errors.New("invalid number")
+		}
+		values = append(values, val)
 	}
-
-	return val, true, nil
+	return values, nil
 }
 
 func validateOperandCount(op string, nums []float64) ([]float64, bool, error) {
@@ -361,6 +363,7 @@ func printHelp(deg bool) {
 	} else {
 		fmt.Println("Trig mode: radians")
 	}
+	fmt.Println("Input: enter multiple numbers per line, separated by spaces or commas.")
 }
 
 func printHistory(history []string) {
