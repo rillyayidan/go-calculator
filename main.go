@@ -17,6 +17,7 @@ type Calculator struct {
 	lastResult float64
 	hasLast    bool
 	useDegrees bool
+	precision  int
 }
 
 func main() {
@@ -30,7 +31,8 @@ func main() {
 
 func NewCalculator() *Calculator {
 	return &Calculator{
-		reader: bufio.NewReader(os.Stdin),
+		reader:    bufio.NewReader(os.Stdin),
+		precision: -1,
 	}
 }
 
@@ -69,9 +71,9 @@ func (c *Calculator) Run() {
 		c.hasLast = true
 
 		expr := formatExpression(numbers, op)
-		c.history = append(c.history, fmt.Sprintf("%s = %g", expr, result))
+		c.history = append(c.history, fmt.Sprintf("%s = %s", expr, c.formatResult(result)))
 
-		fmt.Printf("Result -> %g\n", result)
+		fmt.Printf("Result -> %s\n", c.formatResult(result))
 	}
 }
 
@@ -107,7 +109,7 @@ func (c *Calculator) readOperator() (string, string, bool) {
 
 func isCommand(cmd string) bool {
 	switch cmd {
-	case "help", "history", "degrees", "radians", "export", "clear", "mode":
+	case "help", "history", "degrees", "radians", "export", "clear", "mode", "precision":
 		return true
 	default:
 		return false
@@ -155,6 +157,10 @@ func (c *Calculator) handleCommand(cmd string) bool {
 			fmt.Printf("Last result: %g\n", c.lastResult)
 		} else {
 			fmt.Println("Last result: none")
+		}
+	case "precision":
+		if err := c.setPrecision(); err != nil {
+			fmt.Println("Precision error:", err)
 		}
 	case "clear":
 		c.history = nil
@@ -352,6 +358,13 @@ func formatExpression(nums []float64, op string) string {
 	return b.String()
 }
 
+func (c *Calculator) formatResult(value float64) string {
+	if c.precision < 0 {
+		return fmt.Sprintf("%g", value)
+	}
+	return fmt.Sprintf("%.*f", c.precision, value)
+}
+
 func readLine(reader *bufio.Reader) (string, bool, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -374,6 +387,7 @@ func printHelp(deg bool) {
 	fmt.Println("  degrees  Use degrees for trig")
 	fmt.Println("  radians  Use radians for trig")
 	fmt.Println("  mode     Show trig mode and last result")
+	fmt.Println("  precision Set decimal places (auto or 0-10)")
 	fmt.Println("  export   Save history to file")
 	fmt.Println("  clear    Clear memory")
 	fmt.Println("  exit     Quit")
@@ -385,6 +399,29 @@ func printHelp(deg bool) {
 	}
 	fmt.Println("Input: enter multiple numbers per line, separated by spaces or commas.")
 	fmt.Println("Constants: pi, e.")
+}
+
+func (c *Calculator) setPrecision() error {
+	fmt.Print("Precision (auto or 0-10): ")
+	line, ok, err := readLine(c.reader)
+	if err != nil || !ok {
+		return err
+	}
+	if line == "" || strings.EqualFold(line, "auto") {
+		c.precision = -1
+		fmt.Println("Precision set to auto.")
+		return nil
+	}
+	value, err := strconv.Atoi(line)
+	if err != nil {
+		return errors.New("invalid precision")
+	}
+	if value < 0 || value > 10 {
+		return errors.New("precision must be between 0 and 10")
+	}
+	c.precision = value
+	fmt.Printf("Precision set to %d.\n", value)
+	return nil
 }
 
 func printHistory(history []string) {
