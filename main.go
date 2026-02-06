@@ -286,7 +286,7 @@ func calculateUnary(op string, v float64, degrees bool) (float64, error) {
 	case "cos":
 		return math.Cos(rad), nil
 	case "tan":
-		if math.Mod(rad, math.Pi/2) == 0 {
+		if math.Abs(math.Cos(rad)) < 1e-12 {
 			return 0, errors.New("tan undefined for this value")
 		}
 		return math.Tan(rad), nil
