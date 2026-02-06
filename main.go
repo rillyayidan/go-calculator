@@ -14,6 +14,7 @@ import (
 type Calculator struct {
 	reader     *bufio.Reader
 	history    []string
+	results    []float64
 	lastResult float64
 	hasLast    bool
 	useDegrees bool
@@ -72,6 +73,7 @@ func (c *Calculator) Run() {
 
 		expr := formatExpression(numbers, op)
 		c.history = append(c.history, fmt.Sprintf("%s = %s", expr, c.formatResult(result)))
+		c.results = append(c.results, result)
 
 		fmt.Printf("Result -> %s\n", c.formatResult(result))
 	}
@@ -109,7 +111,7 @@ func (c *Calculator) readOperator() (string, string, bool) {
 
 func isCommand(cmd string) bool {
 	switch cmd {
-	case "help", "history", "degrees", "radians", "export", "clear", "mode", "precision":
+	case "help", "history", "degrees", "radians", "export", "clear", "mode", "precision", "stats":
 		return true
 	default:
 		return false
@@ -162,8 +164,11 @@ func (c *Calculator) handleCommand(cmd string) bool {
 		if err := c.setPrecision(); err != nil {
 			fmt.Println("Precision error:", err)
 		}
+	case "stats":
+		c.printStats()
 	case "clear":
 		c.history = nil
+		c.results = nil
 		c.hasLast = false
 		fmt.Println("Memory cleared.")
 	default:
@@ -388,6 +393,7 @@ func printHelp(deg bool) {
 	fmt.Println("  radians  Use radians for trig")
 	fmt.Println("  mode     Show trig mode and last result")
 	fmt.Println("  precision Set decimal places (auto or 0-10)")
+	fmt.Println("  stats    Show count, min, max, average")
 	fmt.Println("  export   Save history to file")
 	fmt.Println("  clear    Clear memory")
 	fmt.Println("  exit     Quit")
@@ -422,6 +428,32 @@ func (c *Calculator) setPrecision() error {
 	c.precision = value
 	fmt.Printf("Precision set to %d.\n", value)
 	return nil
+}
+
+func (c *Calculator) printStats() {
+	if len(c.results) == 0 {
+		fmt.Println("No results yet.")
+		return
+	}
+
+	min := c.results[0]
+	max := c.results[0]
+	sum := 0.0
+	for _, v := range c.results {
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+		sum += v
+	}
+	avg := sum / float64(len(c.results))
+
+	fmt.Printf("Count: %d\n", len(c.results))
+	fmt.Printf("Min: %s\n", c.formatResult(min))
+	fmt.Printf("Max: %s\n", c.formatResult(max))
+	fmt.Printf("Avg: %s\n", c.formatResult(avg))
 }
 
 func printHistory(history []string) {
