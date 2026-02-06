@@ -33,6 +33,11 @@ func main() {
 		case "history":
 			printHistory(history)
 			continue
+		case "export":
+			if err := exportHistory(reader, history); err != nil {
+				fmt.Println("Export error:", err)
+			}
+			continue
 		case "clear":
 			history = nil
 			hasLast = false
@@ -65,7 +70,7 @@ func main() {
 
 func readOperator(reader *bufio.Reader) (string, string, bool) {
 	for {
-		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, clear, exit): ")
+		fmt.Print("Operator (+, -, *, /, ^, %, sin, cos, tan, sqrt, log) or command (help, history, export, clear, exit): ")
 		line, ok, err := readLine(reader)
 		if err != nil {
 			return "", "", false
@@ -77,7 +82,7 @@ func readOperator(reader *bufio.Reader) (string, string, bool) {
 			return "exit", "", false
 		}
 		switch strings.ToLower(line) {
-		case "help", "history", "clear":
+		case "help", "history", "export", "clear":
 			return line, "", true
 		}
 		switch line {
@@ -275,6 +280,7 @@ func printHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  help    Show this help")
 	fmt.Println("  history Show previous calculations")
+	fmt.Println("  export  Save history to a file")
 	fmt.Println("  clear   Clear history and last result")
 	fmt.Println("  exit    Quit the calculator")
 	fmt.Println("Notes:")
@@ -282,6 +288,31 @@ func printHelp() {
 	fmt.Println("  Enter multiple numbers (one per line). Blank line finishes input.")
 	fmt.Println("  Trig functions use radians.")
 	fmt.Println("  Unary functions: sin, cos, tan, sqrt, log.")
+}
+
+func exportHistory(reader *bufio.Reader, history []string) error {
+	if len(history) == 0 {
+		return errors.New("no history to export")
+	}
+	fmt.Print("Export file path (default: history.txt): ")
+	line, ok, err := readLine(reader)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return io.EOF
+	}
+	path := line
+	if path == "" {
+		path = "history.txt"
+	}
+
+	var b strings.Builder
+	for _, entry := range history {
+		b.WriteString(entry)
+		b.WriteString("\n")
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
 func printHistory(history []string) {
