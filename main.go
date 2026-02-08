@@ -111,7 +111,7 @@ func (c *Calculator) readOperator() (string, string, bool) {
 
 func isCommand(cmd string) bool {
 	switch cmd {
-	case "help", "history", "degrees", "radians", "export", "clear", "mode", "precision", "stats":
+	case "help", "history", "degrees", "radians", "export", "clear", "mode", "precision", "stats", "ops":
 		return true
 	default:
 		return false
@@ -166,6 +166,8 @@ func (c *Calculator) handleCommand(cmd string) bool {
 		}
 	case "stats":
 		c.printStats()
+	case "ops":
+		printOperators()
 	case "clear":
 		c.history = nil
 		c.results = nil
@@ -394,6 +396,7 @@ func printHelp(deg bool) {
 	fmt.Println("  mode     Show trig mode and last result")
 	fmt.Println("  precision Set decimal places (auto or 0-10)")
 	fmt.Println("  stats    Show count, min, max, average")
+	fmt.Println("  ops      List available operators")
 	fmt.Println("  export   Save history to file")
 	fmt.Println("  clear    Clear memory")
 	fmt.Println("  exit     Quit")
@@ -405,6 +408,13 @@ func printHelp(deg bool) {
 	}
 	fmt.Println("Input: enter multiple numbers per line, separated by spaces or commas.")
 	fmt.Println("Constants: pi, e.")
+}
+
+func printOperators() {
+	fmt.Println("\nOperators:")
+	fmt.Println("  Binary: +  -  *  /  ^  %")
+	fmt.Println("  Unary:  sin  cos  tan  sqrt  log")
+	fmt.Println("Aliases: pow -> ^, mod -> %, ln -> log")
 }
 
 func (c *Calculator) setPrecision() error {
